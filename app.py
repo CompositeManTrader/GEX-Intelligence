@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-import pytz
+from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
@@ -261,7 +261,7 @@ with st.sidebar:
 # ═══════════════════════════════════════════════════════════════
 # DATA FETCH
 # ═══════════════════════════════════════════════════════════════
-CDMX = pytz.timezone("America/Mexico_City")
+CDMX = ZoneInfo("America/Mexico_City")
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_data(ticker: str, n_exp: int, r: float, q: float):
