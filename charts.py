@@ -35,6 +35,22 @@ BASE_LAYOUT = dict(
     legend=dict(bgcolor="rgba(22,27,34,0.9)", bordercolor=CLR_GRID, borderwidth=1),
 )
 
+def _ax(which: str, **overrides) -> dict:
+    """Merge BASE_LAYOUT[axis] con overrides. Los overrides ganan."""
+    base = dict(BASE_LAYOUT[which])
+    base.update(overrides)
+    return base
+
+def _base(**overrides) -> dict:
+    """BASE_LAYOUT sin xaxis/yaxis, más overrides que sobrescriben cualquier key duplicada."""
+    out = {k: v for k, v in BASE_LAYOUT.items() if k not in ("xaxis", "yaxis")}
+    out.update(overrides)
+    return out
+
+def _layout_no_axes() -> dict:
+    """Retrocompat: BASE_LAYOUT sin xaxis/yaxis."""
+    return {k: v for k, v in BASE_LAYOUT.items() if k not in ("xaxis", "yaxis")}
+
 # ═══════════════════════════════════════════════════════════════
 # GEX PROFILE — bar chart por strike (el icónico de gexbot)
 # ═══════════════════════════════════════════════════════════════
@@ -102,19 +118,19 @@ def gex_profile_chart(gex_df: pd.DataFrame, spot: float, summary: Dict,
              f"<span style='color:{regime_clr}'>{regime} GAMMA</span></sup>")
 
     fig.update_layout(
-        **BASE_LAYOUT,
+        **_layout_no_axes(),
         title=dict(text=title, x=0.01, y=0.97, font=dict(size=13)),
         barmode="relative",
         height=620,
         shapes=shapes, annotations=annots,
-        xaxis=dict(**BASE_LAYOUT["xaxis"],
-                   title=dict(text="GEX ($M per 1% move)",
-                              font=dict(size=10, color=CLR_TXT_DIM)),
-                   zeroline=True, zerolinewidth=1.5, zerolinecolor=CLR_TXT_DIM),
-        yaxis=dict(**BASE_LAYOUT["yaxis"],
-                   title=dict(text="Strike",
-                              font=dict(size=10, color=CLR_TXT_DIM)),
-                   range=[lo, hi]),
+        xaxis=_ax("xaxis",
+                  title=dict(text="GEX ($M per 1% move)",
+                             font=dict(size=10, color=CLR_TXT_DIM)),
+                  zeroline=True, zerolinewidth=1.5, zerolinecolor=CLR_TXT_DIM),
+        yaxis=_ax("yaxis",
+                  title=dict(text="Strike",
+                             font=dict(size=10, color=CLR_TXT_DIM)),
+                  range=[lo, hi]),
     )
     return fig
 
@@ -146,14 +162,14 @@ def cumulative_gex_chart(gex_df: pd.DataFrame, spot: float,
                            y0=df["cum"].min()*1.1, y1=df["cum"].max()*1.1,
                            line=dict(color=CLR_AMBER, width=1.5)))
     fig.update_layout(
-        **BASE_LAYOUT,
+        **_layout_no_axes(),
         title=dict(text=f"<b>CUMULATIVE GEX {ticker}</b>"
                         "<sup>  Cruce por cero = Gamma Flip</sup>",
                    x=0.01, y=0.97, font=dict(size=13)),
         height=360, shapes=shapes,
-        xaxis=dict(**BASE_LAYOUT["xaxis"], title="Strike"),
-        yaxis=dict(**BASE_LAYOUT["yaxis"], title="Cum. GEX ($M)",
-                   zeroline=True, zerolinewidth=1.5, zerolinecolor=CLR_TXT_DIM),
+        xaxis=_ax("xaxis", title="Strike"),
+        yaxis=_ax("yaxis", title="Cum. GEX ($M)",
+                  zeroline=True, zerolinewidth=1.5, zerolinecolor=CLR_TXT_DIM),
     )
     return fig
 
@@ -177,14 +193,14 @@ def gex_by_expiry_chart(gex_by_exp: Dict[str, float], ticker: str = "") -> go.Fi
         hovertemplate="%{x}<br>GEX: $%{y:.2f}M<extra></extra>",
     ))
     fig.update_layout(
-        **BASE_LAYOUT,
+        **_base(showlegend=False),
         title=dict(text=f"<b>GEX BY EXPIRY {ticker}</b>"
                         "<sup>  Vencimiento que concentra gamma</sup>",
                    x=0.01, y=0.97, font=dict(size=13)),
-        height=360, showlegend=False,
-        xaxis=dict(**BASE_LAYOUT["xaxis"], title="Expiry"),
-        yaxis=dict(**BASE_LAYOUT["yaxis"], title="Net GEX ($M)",
-                   zeroline=True, zerolinewidth=1.5, zerolinecolor=CLR_TXT_DIM),
+        height=360,
+        xaxis=_ax("xaxis", title="Expiry"),
+        yaxis=_ax("yaxis", title="Net GEX ($M)",
+                  zeroline=True, zerolinewidth=1.5, zerolinecolor=CLR_TXT_DIM),
     )
     return fig
 
@@ -209,7 +225,7 @@ def dex_profile_chart(dex_df: pd.DataFrame, spot: float, ticker: str = "") -> go
         hovertemplate="Strike: $%{y:.0f}<br>DEX: $%{x:.2f}M<extra></extra>",
     ))
     fig.update_layout(
-        **BASE_LAYOUT,
+        **_layout_no_axes(),
         title=dict(text=f"<b>DELTA EXPOSURE {ticker}</b>"
                         "<sup>  Dealer hedge flow direccional</sup>",
                    x=0.01, y=0.97, font=dict(size=13)),
@@ -219,9 +235,9 @@ def dex_profile_chart(dex_df: pd.DataFrame, spot: float, ticker: str = "") -> go
                      x1=df[["calls_dex","puts_dex"]].max().max()*1.1,
                      y0=spot, y1=spot,
                      line=dict(color=CLR_BLUE, width=1.3, dash="dash"))],
-        xaxis=dict(**BASE_LAYOUT["xaxis"], title="DEX ($M)",
-                   zeroline=True, zerolinecolor=CLR_TXT_DIM),
-        yaxis=dict(**BASE_LAYOUT["yaxis"], title="Strike", range=[lo, hi]),
+        xaxis=_ax("xaxis", title="DEX ($M)",
+                  zeroline=True, zerolinecolor=CLR_TXT_DIM),
+        yaxis=_ax("yaxis", title="Strike", range=[lo, hi]),
     )
     return fig
 
@@ -253,11 +269,11 @@ def vanna_charm_chart(vex_df: pd.DataFrame, charm_df: pd.DataFrame,
                       line=dict(color=CLR_BLUE, width=1.2, dash="dash"),
                       row=1, col=col, xref=f"x{col} domain" if col>1 else "x")
     fig.update_layout(
-        **{k: v for k, v in BASE_LAYOUT.items() if k not in ("xaxis", "yaxis")},
+        **_base(showlegend=False),
         title=dict(text=f"<b>VANNA & CHARM {ticker}</b>"
                         "<sup>  Flujos por IV y por tiempo</sup>",
                    x=0.01, y=0.97, font=dict(size=13)),
-        height=500, showlegend=False,
+        height=500,
     )
     for i in (1, 2):
         fig.update_xaxes(gridcolor=CLR_GRID, zerolinecolor=CLR_TXT_DIM,
@@ -285,7 +301,7 @@ def oi_chart(chains: Dict, spot: float, ticker: str = "") -> go.Figure:
                          name="Puts OI", marker_color=CLR_GREEN,
                          hovertemplate="$%{x:.0f}<br>Puts OI: %{y:,.0f}<extra></extra>"))
     fig.update_layout(
-        **BASE_LAYOUT,
+        **_layout_no_axes(),
         title=dict(text=f"<b>OPEN INTEREST {ticker}</b>",
                    x=0.01, y=0.97, font=dict(size=13)),
         height=360, barmode="relative",
@@ -293,9 +309,9 @@ def oi_chart(chains: Dict, spot: float, ticker: str = "") -> go.Figure:
                      y0=-max(put_oi.values(), default=0)*1.1,
                      y1=max(call_oi.values(), default=0)*1.1,
                      line=dict(color=CLR_BLUE, width=1.3, dash="dash"))],
-        xaxis=dict(**BASE_LAYOUT["xaxis"], title="Strike"),
-        yaxis=dict(**BASE_LAYOUT["yaxis"], title="Open Interest (Puts ← → Calls)",
-                   zeroline=True, zerolinecolor=CLR_TXT_DIM),
+        xaxis=_ax("xaxis", title="Strike"),
+        yaxis=_ax("yaxis", title="Open Interest (Puts ← → Calls)",
+                  zeroline=True, zerolinecolor=CLR_TXT_DIM),
     )
     return fig
 
