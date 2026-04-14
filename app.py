@@ -1,3 +1,4 @@
+
 """
 app.py — GEX DASHBOARD (clone funcional de gexbot.com)
 ══════════════════════════════════════════════════════
@@ -20,7 +21,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
-from data_layer import fetch_options_yahoo
+from data_layer import fetch_options
 from gex_engine import (
     enrich_chain_with_greeks, compute_gex_profile, compute_dex_profile,
     compute_vex_profile, compute_charm_profile, compute_summary,
@@ -219,8 +220,8 @@ html, body, [class*="css"], .stMarkdown, .stButton>button, .stTextInput>div>inpu
 # ═══════════════════════════════════════════════════════════════
 # SIDEBAR — CONTROLES
 # ═══════════════════════════════════════════════════════════════
-TICKERS_PRESET = ["SPX", "SPY", "QQQ", "IWM", "DIA", "NDX", "AAPL", "MSFT",
-                  "NVDA", "TSLA", "META", "GOOG", "AMZN"]
+TICKERS_PRESET = ["SPY", "SPX", "QQQ", "NDX", "IWM", "RUT", "DIA", "VIX",
+                  "AAPL", "MSFT", "NVDA", "TSLA", "META", "GOOG", "AMZN"]
 
 with st.sidebar:
     st.markdown("### GEX DASHBOARD")
@@ -243,6 +244,12 @@ with st.sidebar:
     strike_rng = st.slider("Rango de strikes (± %)", 3, 20, 8) / 100.0
 
     st.markdown("---")
+    data_source = st.selectbox(
+        "Fuente de datos",
+        ["auto", "cboe", "yahoo"],
+        index=0,
+        help="auto: Cboe primero, Yahoo fallback. Cboe es 15-min delayed pero estable."
+    )
     refresh_clicked = st.button("🔄 REFRESH DATA", use_container_width=True)
     auto_refresh = st.checkbox("Auto-refresh (5 min)", value=False)
     st.caption("⚠️ Yahoo tiene rate-limit — usar con moderación")
@@ -264,24 +271,24 @@ with st.sidebar:
 CDMX = ZoneInfo("America/Mexico_City")
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_data(ticker: str, n_exp: int, r: float, q: float):
-    """TTL = 5 min para evitar hammering a Yahoo."""
-    chains_raw, spot = fetch_options_yahoo(ticker, n_exp=n_exp)
+def load_data(ticker: str, n_exp: int, r: float, q: float, source: str):
+    """TTL = 5 min para evitar hammering."""
+    chains_raw, spot, src_used = fetch_options(ticker, n_exp=n_exp, source=source)
     if not chains_raw or not spot:
-        return None, None, None
+        return None, None, None, src_used
     chains = enrich_chain_with_greeks(chains_raw, spot, r, q)
-    return chains, spot, datetime.now(CDMX).strftime("%Y-%m-%d %H:%M:%S CDMX")
+    ts = datetime.now(CDMX).strftime("%Y-%m-%d %H:%M:%S CDMX")
+    return chains, spot, ts, src_used
 
 if refresh_clicked:
     load_data.clear()
 
-with st.spinner(f"Fetching {ticker} chains (Yahoo anti-rate-limit)..."):
-    chains, spot, ts_fetch = load_data(ticker, n_exp, risk_free, div_yield)
+with st.spinner(f"Fetching {ticker} chains..."):
+    chains, spot, ts_fetch, src_used = load_data(ticker, n_exp, risk_free, div_yield, data_source)
 
 if not chains or not spot:
-    st.error(f"❌ No se pudieron obtener datos para **{ticker}**. "
-             "Posibles causas: rate-limit de Yahoo, ticker sin opciones, "
-             "o red bloqueada. Intenta en 1-2 min con REFRESH.")
+    st.error(f"❌ No se pudieron obtener datos para **{ticker}** (fuente: {src_used}). "
+             "Intenta cambiar de fuente en el sidebar o espera 1-2 min y REFRESH.")
     st.stop()
 
 # ═══════════════════════════════════════════════════════════════
@@ -508,10 +515,10 @@ with tab_playbook:
 """)
 
 st.markdown("---")
-st.caption(f"Datos: Yahoo Finance · {len(chains)} vencimientos · "
+st.caption(f"Fuente: {src_used} · {len(chains)} vencimientos · "
            f"r={risk_free:.3f} q={div_yield:.3f} · "
-           f"IV calculada con Brent's method (BS). "
-           f"Para data en tiempo real profesional, usar Polygon/Tradier/CBOE — ver README.")
+           f"IV recalculada con Brent (BS). "
+           f"Para real-time sin delay, usar Polygon/Tradier/CBOE DataShop — ver README.")
 
 # Auto-refresh
 if auto_refresh:
